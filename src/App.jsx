@@ -5,6 +5,7 @@ import { POSTS, CATEGORIES } from './posts.js'
 marked.use({ breaks: true })
 
 const PORTFOLIO_URL = 'https://seon06.dev'
+// blog.seon06.dev — Cloudflare Pages custom domain
 const GITHUB_URL    = 'https://github.com/seon0313'
 
 /* ─── Hash Router ────────────────────────────────────── */
