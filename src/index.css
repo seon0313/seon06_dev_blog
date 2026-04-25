@@ -105,3 +105,38 @@ a { color: inherit; text-decoration: none; }
   font-size: 13.5px;
   line-height: 1.7;
 }
+
+/* ─── Responsive ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Nav */
+  .c-nav       { padding: 14px 20px !important; }
+  .c-nav-links { gap: 4px !important; }
+
+  /* Post List */
+  .c-list-main  { padding: 100px 20px 72px !important; }
+  .c-list-title { font-size: clamp(44px, 13vw, 72px) !important; }
+
+  /* Post Card */
+  .c-post-card {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Post Detail */
+  .c-detail-main { padding: 100px 20px 72px !important; }
+
+  /* Footer */
+  .c-footer {
+    padding: 20px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+
+  /* Prose */
+  .prose        { font-size: 16px !important; }
+  .prose h1     { font-size: 28px !important; }
+  .prose h2     { font-size: 22px !important; }
+  .prose h3     { font-size: 18px !important; }
+  .prose pre    { padding: 16px !important; border-radius: 8px !important; }
+}

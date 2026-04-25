@@ -1,12 +1,32 @@
 import { useEffect, useState } from 'react'
 import { marked } from 'marked'
-import { POSTS, CATEGORIES } from './posts.js'
+import Admin from './Admin.jsx'
 
 marked.use({ breaks: true })
 
 const PORTFOLIO_URL = 'https://seon06.dev'
-// blog.seon06.dev — Cloudflare Pages custom domain
 const GITHUB_URL    = 'https://github.com/seon0313'
+
+/* ─── API ─────────────────────────────────────────────── */
+async function fetchCategories() {
+  const res = await fetch('/api/categories')
+  const { categories } = await res.json()
+  return categories
+}
+
+async function fetchPosts(category) {
+  const params = category && category !== 'all' ? `?category=${category}` : ''
+  const res = await fetch(`/api/posts${params}`)
+  const { posts } = await res.json()
+  return posts
+}
+
+async function fetchPost(slug) {
+  const res = await fetch(`/api/posts/${slug}`)
+  if (!res.ok) return null
+  const { post } = await res.json()
+  return post
+}
 
 /* ─── Hash Router ────────────────────────────────────── */
 function useRoute() {
@@ -28,13 +48,16 @@ function navigate(to) {
 /* ─── App ────────────────────────────────────────────── */
 export default function App() {
   const path = useRoute()
+
+  if (path.startsWith('/admin')) return <Admin />
+
   const match = path.match(/^\/post\/(.+)$/)
-  const post  = match ? POSTS.find(p => p.slug === match[1]) : null
+  const slug  = match ? match[1] : null
 
   return (
     <div style={{ minHeight: '100dvh' }}>
       <Nav />
-      {post ? <PostDetail post={post} /> : <PostList />}
+      {slug ? <PostDetail slug={slug} /> : <PostList />}
       <Footer />
     </div>
   )
@@ -43,20 +66,20 @@ export default function App() {
 /* ─── Nav ────────────────────────────────────────────── */
 function Nav() {
   return (
-    <nav style={styles.nav}>
+    <nav style={styles.nav} className="c-nav">
       <a
         href="#/"
         style={styles.navLogo}
         onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
         onMouseLeave={e => e.currentTarget.style.opacity = '1'}
       >YS · Blog</a>
-      <div style={styles.navLinks}>
+      <div style={styles.navLinks} className="c-nav-links">
         <a
           href={PORTFOLIO_URL}
           style={styles.navLink}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-        >Portfolio ↗</a>
+        >Webpage ↗</a>
         <a
           href={GITHUB_URL}
           target="_blank"
@@ -72,42 +95,49 @@ function Nav() {
 
 /* ─── Post List ──────────────────────────────────────── */
 function PostList() {
-  const [active, setActive] = useState('all')
-  const [visible, setVisible] = useState(false)
+  const [active,     setActive]     = useState('all')
+  const [visible,    setVisible]    = useState(false)
+  const [categories, setCategories] = useState([{ key: 'all', label: 'All' }])
+  const [posts,      setPosts]      = useState([])
+  const [loading,    setLoading]    = useState(true)
+
+  // 카테고리 로드 (최초 1회)
+  useEffect(() => {
+    fetchCategories().then(setCategories).catch(() => {})
+  }, [])
+
+  // 포스트 로드 (카테고리 바뀔 때마다)
+  useEffect(() => {
+    setLoading(true)
+    fetchPosts(active)
+      .then(setPosts)
+      .catch(() => setPosts([]))
+      .finally(() => setLoading(false))
+  }, [active])
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60)
     return () => clearTimeout(t)
   }, [])
 
-  const filtered = active === 'all' ? POSTS : POSTS.filter(p => p.category === active)
-
   return (
-    <main style={styles.listMain}>
+    <main style={styles.listMain} className="c-list-main">
       {/* Hero */}
       <div style={styles.listHero}>
-        <p style={{
-          ...styles.heroLabel,
-          animation: visible ? 'fadeUp 0.7s var(--ease-out) 0.1s both' : 'none',
-        }}>✦ Writing</p>
-        <h1 style={{
-          ...styles.listTitle,
-          animation: visible ? 'fadeUp 0.8s var(--ease-out) 0.2s both' : 'none',
-        }}>Blog</h1>
-        <p style={{
-          ...styles.listSubtitle,
-          animation: visible ? 'fadeUp 0.8s var(--ease-out) 0.3s both' : 'none',
-        }}>
+        <p style={{ ...styles.heroLabel, animation: visible ? 'fadeUp 0.7s var(--ease-out) 0.1s both' : 'none' }}>
+          ✦ Writing
+        </p>
+        <h1 className="c-list-title" style={{ ...styles.listTitle, animation: visible ? 'fadeUp 0.8s var(--ease-out) 0.2s both' : 'none' }}>
+          Blog
+        </h1>
+        <p style={{ ...styles.listSubtitle, animation: visible ? 'fadeUp 0.8s var(--ease-out) 0.3s both' : 'none' }}>
           개발하면서 배운 것들, 만든 것들의 기록.
         </p>
       </div>
 
       {/* Filter tabs */}
-      <div style={{
-        ...styles.tabsRow,
-        animation: visible ? 'fadeUp 0.7s var(--ease-out) 0.4s both' : 'none',
-      }}>
-        {CATEGORIES.map(({ key, label }) => (
+      <div style={{ ...styles.tabsRow, animation: visible ? 'fadeUp 0.7s var(--ease-out) 0.4s both' : 'none' }}>
+        {categories.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setActive(key)}
@@ -117,38 +147,42 @@ function PostList() {
       </div>
 
       {/* Post list */}
-      <div style={{
-        ...styles.postList,
-        animation: visible ? 'fadeUp 0.8s var(--ease-out) 0.5s both' : 'none',
-      }}>
-        {filtered.length === 0 ? (
+      <div style={{ ...styles.postList, animation: visible ? 'fadeUp 0.8s var(--ease-out) 0.5s both' : 'none' }}>
+        {loading ? (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyText}>불러오는 중...</p>
+          </div>
+        ) : posts.length === 0 ? (
           <div style={styles.emptyState}>
             <p style={styles.emptyText}>아직 글이 없습니다.</p>
           </div>
         ) : (
-          filtered.map((post, i) => <PostCard key={post.slug} post={post} index={i} />)
+          posts.map((post, i) => (
+            <PostCard key={post.slug} post={post} categories={categories} index={i} />
+          ))
         )}
       </div>
     </main>
   )
 }
 
-function PostCard({ post }) {
+function PostCard({ post, categories }) {
   const [hovered, setHovered] = useState(false)
-  const cat = CATEGORIES.find(c => c.key === post.category)
+  const cat = categories.find(c => c.key === post.category_key)
 
   return (
     <article
+      className="c-post-card"
       style={{ ...styles.postCard, ...(hovered ? styles.postCardHover : {}) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => navigate(`/post/${post.slug}`)}
     >
       <div style={styles.postCardLeft}>
-        <time style={styles.postDate}>{formatDate(post.date)}</time>
+        <time style={styles.postDate}>{formatDate(post.published_at)}</time>
       </div>
       <div style={styles.postCardRight}>
-        <span style={styles.catBadge}>{cat?.label ?? post.category}</span>
+        <span style={styles.catBadge}>{cat?.label ?? post.category_key}</span>
         <h2 style={{ ...styles.postTitle, ...(hovered ? { color: 'var(--accent)' } : {}) }}>
           {post.title}
         </h2>
@@ -162,14 +196,44 @@ function PostCard({ post }) {
 }
 
 /* ─── Post Detail ────────────────────────────────────── */
-function PostDetail({ post }) {
-  const cat = CATEGORIES.find(c => c.key === post.category)
+function PostDetail({ slug }) {
+  const [post,    setPost]    = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetchPost(slug)
+      .then(setPost)
+      .catch(() => setPost(null))
+      .finally(() => setLoading(false))
+  }, [slug])
+
+  if (loading) {
+    return (
+      <main style={styles.detailMain} className="c-detail-main">
+        <div style={styles.detailInner}>
+          <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>불러오는 중...</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (!post) {
+    return (
+      <main style={styles.detailMain} className="c-detail-main">
+        <div style={styles.detailInner}>
+          <button style={styles.backBtn} onClick={() => navigate('/')}>← Back</button>
+          <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>글을 찾을 수 없습니다.</p>
+        </div>
+      </main>
+    )
+  }
+
   const html = marked.parse(post.content)
 
   return (
-    <main style={styles.detailMain}>
+    <main style={styles.detailMain} className="c-detail-main">
       <div style={styles.detailInner}>
-        {/* Back */}
         <button
           style={styles.backBtn}
           onClick={() => navigate('/')}
@@ -177,11 +241,10 @@ function PostDetail({ post }) {
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
         >← Back</button>
 
-        {/* Header */}
         <header style={styles.detailHeader}>
           <div style={styles.detailMeta}>
-            <span style={styles.catBadge}>{cat?.label ?? post.category}</span>
-            <time style={styles.postDate}>{formatDate(post.date)}</time>
+            <span style={styles.catBadge}>{post.category_key}</span>
+            <time style={styles.postDate}>{formatDate(post.published_at)}</time>
           </div>
           <h1 style={styles.detailTitle}>{post.title}</h1>
           <p style={styles.detailExcerpt}>{post.excerpt}</p>
@@ -189,11 +252,7 @@ function PostDetail({ post }) {
 
         <div style={styles.detailDivider} />
 
-        {/* Content */}
-        <div
-          className="prose"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </main>
   )
@@ -202,7 +261,7 @@ function PostDetail({ post }) {
 /* ─── Footer ─────────────────────────────────────────── */
 function Footer() {
   return (
-    <footer style={styles.footer}>
+    <footer style={styles.footer} className="c-footer">
       <span style={styles.footerLogo}>YS</span>
       <span style={styles.footerCopy}>© {new Date().getFullYear()} 추윤선 · Built with React + Cloudflare Pages</span>
     </footer>
@@ -211,6 +270,7 @@ function Footer() {
 
 /* ─── Utils ──────────────────────────────────────────── */
 function formatDate(dateStr) {
+  if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
@@ -218,7 +278,6 @@ function formatDate(dateStr) {
 
 /* ─── Styles ─────────────────────────────────────────── */
 const styles = {
-  /* Nav */
   nav: {
     position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -249,7 +308,6 @@ const styles = {
     transition: 'background 0.2s, color 0.2s',
   },
 
-  /* List */
   listMain: {
     maxWidth: '860px', margin: '0 auto',
     padding: '140px 48px 100px',
@@ -278,7 +336,6 @@ const styles = {
     color: 'var(--text-muted)',
   },
 
-  /* Tabs */
   tabsRow: {
     display: 'flex', gap: '6px', flexWrap: 'wrap',
     marginBottom: '48px',
@@ -300,7 +357,6 @@ const styles = {
     borderColor: 'var(--text)',
   },
 
-  /* Post list */
   postList: {
     display: 'flex', flexDirection: 'column',
   },
@@ -313,12 +369,8 @@ const styles = {
     cursor: 'pointer',
     transition: 'opacity 0.2s',
   },
-  postCardHover: {
-    opacity: 1,
-  },
-  postCardLeft: {
-    paddingTop: '4px',
-  },
+  postCardHover: { opacity: 1 },
+  postCardLeft: { paddingTop: '4px' },
   postCardRight: {
     display: 'flex', flexDirection: 'column', gap: '10px',
   },
@@ -357,7 +409,6 @@ const styles = {
     marginTop: '4px',
   },
 
-  /* Empty */
   emptyState: {
     padding: '80px 0',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -368,10 +419,7 @@ const styles = {
     fontSize: '15px', color: 'var(--text-muted)',
   },
 
-  /* Detail */
-  detailMain: {
-    padding: '120px 48px 100px',
-  },
+  detailMain: { padding: '120px 48px 100px' },
   detailInner: {
     maxWidth: '720px', margin: '0 auto',
     display: 'flex', flexDirection: 'column', gap: '32px',
@@ -405,11 +453,8 @@ const styles = {
     color: 'var(--text-muted)',
     lineHeight: 1.5,
   },
-  detailDivider: {
-    height: '1px', background: 'var(--line)',
-  },
+  detailDivider: { height: '1px', background: 'var(--line)' },
 
-  /* Footer */
   footer: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '24px 48px',

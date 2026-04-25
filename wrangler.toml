@@ -1,3 +1,8 @@
 name = "seon06-blog"
 compatibility_date = "2026-04-24"
 pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "seon06-blog-db"
+database_id = "794321f3-8bd3-45b1-a37c-cd2d94d16273"
