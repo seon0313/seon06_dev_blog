@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { marked } from 'marked'
-import Admin from './Admin.jsx'
 import Logo from './Logo.jsx'
+
+// 관리자 화면은 방문자에게 필요 없으니 따로 떼어 필요할 때만 받음
+const Admin = lazy(() => import('./Admin.jsx'))
 
 marked.use({ breaks: true })
 
@@ -9,24 +11,38 @@ const PORTFOLIO_URL = 'https://seon06.dev'
 const GITHUB_URL    = 'https://github.com/seon0313'
 
 /* ─── API ─────────────────────────────────────────────── */
+// index.html이 JS보다 먼저 시작해 둔 요청이 있으면 그 결과를 한 번만 씀
+function getJSON(url) {
+  const pre = window.__prefetch?.[url]
+  if (pre) {
+    delete window.__prefetch[url]
+    return pre.catch(() => fetchJSON(url))
+  }
+  return fetchJSON(url)
+}
+
+function fetchJSON(url) {
+  return fetch(url).then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+}
+
 async function fetchCategories() {
-  const res = await fetch('/api/categories')
-  const { categories } = await res.json()
+  const { categories } = await getJSON('/api/categories')
   return categories
 }
 
 async function fetchPosts(category) {
   const params = category && category !== 'all' ? `?category=${category}` : ''
-  const res = await fetch(`/api/posts${params}`)
-  const { posts } = await res.json()
+  const { posts } = await getJSON(`/api/posts${params}`)
   return posts
 }
 
 async function fetchPost(slug) {
-  const res = await fetch(`/api/posts/${slug}`)
-  if (!res.ok) return null
-  const { post } = await res.json()
-  return post
+  try {
+    const { post } = await getJSON(`/api/posts/${slug}`)
+    return post
+  } catch {
+    return null
+  }
 }
 
 /* ─── Hash Router ────────────────────────────────────── */
@@ -50,7 +66,7 @@ function navigate(to) {
 export default function App() {
   const path = useRoute()
 
-  if (path.startsWith('/admin')) return <Admin />
+  if (path.startsWith('/admin')) return <Suspense fallback={null}><Admin /></Suspense>
 
   const match = path.match(/^\/post\/(.+)$/)
   const slug  = match ? decodeURIComponent(match[1]) : null
